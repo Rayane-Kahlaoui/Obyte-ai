@@ -1,0 +1,22 @@
+services:
+  orbyte-api:
+    build: .
+    container_name: orbyte-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./database:/app/database
+      - ./data:/app/data
+    environment:
+      - LLM_API_TYPE=${LLM_API_TYPE:-openrouter}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - HF_TOKEN=${HF_TOKEN}
+      - LOCAL_LLM_API_URL=${LOCAL_LLM_API_URL:-http://host.docker.internal:11434/v1}
+      - LOCAL_LLM_MODEL=${LOCAL_LLM_MODEL:-llama3.2:1b}
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
