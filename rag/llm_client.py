@@ -9,7 +9,8 @@ from rag.config import (
     LOCAL_LLM_MODEL,
     LLM_TEMPERATURE,
     OPENROUTER_API_KEY,
-    OPENROUTER_API_URL
+    OPENROUTER_API_URL,
+    OPENROUTER_MODEL
 )
 
 class LLMClient:
@@ -30,9 +31,9 @@ class LLMClient:
         self.temperature = temperature
         self.token = os.environ.get("HF_TOKEN", "")
         # OpenRouter credentials
-        self.openrouter_key = os.environ.get("OPENROUTER_API_KEY", "")
-        # DeepSeek V4 Flash model identifier for OpenRouter
-        self.openrouter_model = "openrouter/free"
+        self.openrouter_key = os.environ.get("OPENROUTER_API_KEY", "") or OPENROUTER_API_KEY
+        # Configure model identifier from environment or config.py default
+        self.openrouter_model = os.environ.get("OPENROUTER_MODEL", "") or OPENROUTER_MODEL
 
     def generate(self, system_prompt: str, user_prompt: str) -> str:
         """

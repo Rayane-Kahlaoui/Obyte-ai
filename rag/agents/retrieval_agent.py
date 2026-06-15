@@ -38,8 +38,8 @@ class RetrievalAgent(BaseAgent):
         Queries ChromaDB for relevant document chunks, filters them based on access authorization,
         and provides an explainable report of the retrieval process.
         """
-        # Fetch more candidates to ensure we have top_k results after permission filtering
-        candidate_count = top_k * 20  # broaden search to improve chance of finding relevant ambiguous chunk
+        # Fetch a balanced number of candidates to ensure we have top_k results after permission filtering
+        candidate_count = max(12, top_k * 4)  # Optimized to reduce retrieval overhead on local machine
         
         try:
             results = self.collection.query(

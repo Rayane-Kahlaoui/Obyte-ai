@@ -37,6 +37,7 @@ cp .env.example .env
 |---|---|---|
 | `LLM_API_TYPE` | `openrouter` | `openrouter` · `local_api` · `hf_inference` · `mock` |
 | `OPENROUTER_API_KEY` | — | Required when `LLM_API_TYPE=openrouter` |
+| `OPENROUTER_MODEL` | `openai/gpt-oss-20b:free` | Model slug used for the OpenRouter backend |
 | `HF_TOKEN` | — | Required when `LLM_API_TYPE=hf_inference` |
 | `LOCAL_LLM_API_URL` | `http://host.docker.internal:11434/v1` | Base URL of Ollama or llama.cpp server |
 | `LOCAL_LLM_MODEL` | `llama3.2:1b` | Model name when using `local_api` |
@@ -72,6 +73,33 @@ python -m venv .venv
 pip install -r requirements.txt
 uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+---
+
+## Interactive CLI (Testing)
+
+An interactive chat session is included for hands-on testing. It lets you pick an LLM backend and a mock user before entering a prompt loop.
+
+**Windows — double-click or run from a terminal:**
+
+```bash
+run_chat.bat
+```
+
+On startup you will be asked to:
+1. **Select an LLM backend** — OpenRouter, local Ollama, Hugging Face, or mock.
+2. **Select a user** — alice (Confidential), bob (Internal), or charlie (Public).
+
+Inside the session you can switch users, backend, or retrieval depth on the fly:
+
+| Command | Description |
+|---|---|
+| `/user <name>` | Switch active user (alice / bob / charlie) |
+| `/mode <mode>` | Switch LLM backend (openrouter / local / hf / mock) |
+| `/top-k <n>` | Change the number of retrieved chunks |
+| `/exit` | End the session |
+
+See [`test_scenarios.md`](test_scenarios.md) for a set of ready-made questions and expected results covering every clearance level.
 
 ---
 
@@ -248,13 +276,17 @@ Orbyte/
 │   ├── llm_client.py        # LLM backends (OpenRouter, Ollama, HF, mock)
 │   ├── embed_documents.py   # One-shot ingestion script
 │   ├── semantic_chunker.py  # Semantic chunking via sentence-transformers
-│   ├── query_db.py          # Low-level ChromaDB helpers
+│   ├── query_db.py          # CLI entry-point and interactive chat loop
 │   └── agents/
 │       ├── identity_agent.py   # Clearance lookup and access control
 │       ├── retrieval_agent.py  # Vector search + filtering
 │       └── judge_agent.py      # Response quality auditor
 ├── data/                    # Parquet dataset files
 ├── database/                # Persisted ChromaDB (sqlite3 + vectors)
+├── run_chat.bat             # One-click interactive CLI launcher (Windows)
+├── test_scenarios.md        # Ready-made test questions and expected results
+├── verify_system.py         # Unit-test suite for all agents and MCP tools
+├── verify_api.py            # FastAPI endpoint integration tests
 ├── requirements.txt
 ├── Dockerfile
 ├── docker-compose.yml
