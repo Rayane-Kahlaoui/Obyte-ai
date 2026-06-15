@@ -64,6 +64,12 @@ system_prompt = (
 LOCAL_LLM_API_URL = os.environ.get("LOCAL_LLM_API_URL", "http://localhost:11434/v1")
 LOCAL_LLM_MODEL = os.environ.get("LOCAL_LLM_MODEL", "llama3.2:1b")
 
+# Local Python-based (self-contained) inference settings
+LOCAL_INFERENCE_TYPE = os.environ.get("LOCAL_INFERENCE_TYPE", "llama_cpp")  # Options: "llama_cpp" or "transformers"
+LOCAL_HF_MODEL_ID = os.environ.get("LOCAL_HF_MODEL_ID", "Qwen/Qwen2.5-1.5B-Instruct-GGUF")
+LOCAL_HF_GGUF_FILENAME = os.environ.get("LOCAL_HF_GGUF_FILENAME", "*q4_k_m.gguf")
+LOCAL_MODEL_PATH = os.environ.get("LOCAL_MODEL_PATH", "")  # If set, overrides the huggingface hub download
+
 LLM_TEMPERATURE = 0.0  # Zero temperature for deterministic, hallucination-free RAG responses
 
 # Mock clearances for testing Identity Agent

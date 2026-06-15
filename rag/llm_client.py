@@ -14,6 +14,11 @@ from rag.config import (
 )
 
 class LLMClient:
+    # Class-level caches to share loaded models between instances
+    _llama_model = None
+    _transformers_model = None
+    _transformers_tokenizer = None
+
     def __init__(
         self,
         api_type: str = None,
@@ -43,6 +48,8 @@ class LLMClient:
             return self._mock_generate(system_prompt, user_prompt)
         elif self.api_type == "local_api":
             return self._live_generate(self.local_url, self.local_model, system_prompt, user_prompt)
+        elif self.api_type == "local_python":
+            return self._local_python_generate(system_prompt, user_prompt)
         elif self.api_type == "openrouter":
             return self._openrouter_generate(system_prompt, user_prompt)
         else:  # hf_inference default
@@ -196,3 +203,125 @@ class LLMClient:
             except:
                 pass
             return err
+
+    def _local_python_generate(self, system_prompt: str, user_prompt: str) -> str:
+        """Runs self-contained local Python inference via llama-cpp or transformers."""
+        # Import settings lazily
+        from rag.config import (
+            LOCAL_INFERENCE_TYPE,
+            LOCAL_HF_MODEL_ID,
+            LOCAL_HF_GGUF_FILENAME,
+            LOCAL_MODEL_PATH
+        )
+        
+        if LOCAL_INFERENCE_TYPE == "llama_cpp":
+            return self._generate_with_llama_cpp(
+                LOCAL_HF_MODEL_ID, LOCAL_HF_GGUF_FILENAME, LOCAL_MODEL_PATH, system_prompt, user_prompt
+            )
+        elif LOCAL_INFERENCE_TYPE == "transformers":
+            return self._generate_with_transformers(
+                LOCAL_HF_MODEL_ID, LOCAL_MODEL_PATH, system_prompt, user_prompt
+            )
+        else:
+            return f"Unsupported LOCAL_INFERENCE_TYPE: {LOCAL_INFERENCE_TYPE}"
+
+    def _generate_with_llama_cpp(
+        self, hf_repo: str, gguf_filename: str, model_path: str, system_prompt: str, user_prompt: str
+    ) -> str:
+        if LLMClient._llama_model is None:
+            import os
+            from huggingface_hub import hf_hub_download
+            from llama_cpp import Llama
+            
+            # Resolve actual model file path
+            if model_path and os.path.exists(model_path):
+                resolved_path = model_path
+            else:
+                actual_filename = gguf_filename
+                if actual_filename == "*q4_k_m.gguf":
+                    actual_filename = "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+                
+                print(f"\n[Local Engine] Downloading/Checking GGUF model '{actual_filename}' from repo '{hf_repo}'...")
+                try:
+                    resolved_path = hf_hub_download(
+                        repo_id=hf_repo,
+                        filename=actual_filename,
+                        repo_type="model"
+                    )
+                except Exception as e:
+                    print(f"Error downloading {actual_filename} from {hf_repo}: {e}. Trying fallback bartowski/Qwen2.5-1.5B-Instruct-GGUF...")
+                    try:
+                        resolved_path = hf_hub_download(
+                            repo_id="bartowski/Qwen2.5-1.5B-Instruct-GGUF",
+                            filename="Qwen2.5-1.5B-Instruct-Q4_K_M.gguf",
+                            repo_type="model"
+                        )
+                    except Exception as fallback_err:
+                        return f"Failed to download GGUF model: {e}\nFallback error: {fallback_err}"
+            
+            print(f"[Local Engine] Loading Llama model from {resolved_path}...")
+            LLMClient._llama_model = Llama(
+                model_path=resolved_path,
+                n_ctx=2048,
+                n_threads=4,
+                verbose=False
+            )
+            print("[Local Engine] Llama model loaded successfully.")
+            
+        try:
+            response = LLMClient._llama_model.create_chat_completion(
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt}
+                ],
+                temperature=self.temperature,
+                max_tokens=800
+            )
+            return response["choices"][0]["message"]["content"]
+        except Exception as e:
+            return f"Error executing local llama-cpp generation: {e}"
+
+    def _generate_with_transformers(
+        self, model_id: str, model_path: str, system_prompt: str, user_prompt: str
+    ) -> str:
+        if LLMClient._transformers_model is None:
+            import os
+            import torch
+            from transformers import AutoTokenizer, AutoModelForCausalLM
+            
+            actual_model = model_path if (model_path and os.path.exists(model_path)) else model_id
+            if not actual_model or actual_model.endswith("-GGUF"):
+                actual_model = "Qwen/Qwen2.5-1.5B-Instruct"
+                
+            print(f"\n[Local Engine] Loading Transformers model/tokenizer for '{actual_model}'...")
+            LLMClient._transformers_tokenizer = AutoTokenizer.from_pretrained(actual_model)
+            LLMClient._transformers_model = AutoModelForCausalLM.from_pretrained(
+                actual_model,
+                torch_dtype=torch.float32,
+                device_map="auto"
+            )
+            print("[Local Engine] Transformers model loaded successfully.")
+            
+        try:
+            import torch
+            messages = [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+            text = LLMClient._transformers_tokenizer.apply_chat_template(
+                messages, tokenize=False, add_generation_prompt=True
+            )
+            inputs = LLMClient._transformers_tokenizer([text], return_tensors="pt").to(LLMClient._transformers_model.device)
+            with torch.no_grad():
+                generated_ids = LLMClient._transformers_model.generate(
+                    **inputs,
+                    max_new_tokens=800,
+                    temperature=self.temperature,
+                    do_sample=self.temperature > 0.0
+                )
+            generated_ids = [
+                output_ids[len(input_ids):] for input_ids, output_ids in zip(inputs.input_ids, generated_ids)
+            ]
+            return LLMClient._transformers_tokenizer.batch_decode(generated_ids, skip_special_tokens=True)[0]
+        except Exception as e:
+            return f"Error executing local transformers generation: {e}"

@@ -20,6 +20,7 @@ def main():
     reverse_api_map = {
         "hf_inference": "hf",
         "local_api": "local",
+        "local_python": "local_python",
         "mock": "mock",
         "openrouter": "openrouter"
     }
@@ -28,8 +29,7 @@ def main():
     parser = argparse.ArgumentParser(description="Query the Multi-Agent Legal RAG System")
     parser.add_argument("query", type=str, nargs="?", default="", help="The question to ask")
     parser.add_argument("--user", type=str, default="charlie", help="Username to query as (alice/bob/charlie)")
-    parser.add_argument("--live", action="store_true", help="Toggle live local LLM server instead of mock")
-    parser.add_argument("--mode", type=str, choices=["hf", "local", "mock", "openrouter"], default=default_mode, help="LLM backend mode (hf: Hugging Face serverless free API, local: Ollama/local server, mock: rule-based generator, openrouter: OpenRouter API)")
+    parser.add_argument("--mode", type=str, choices=["hf", "local", "openrouter"], default=default_mode, help="LLM backend mode (hf: Hugging Face serverless free API, local: Ollama/local server, openrouter: OpenRouter API)")
     parser.add_argument("--top-k", type=int, default=3, help="Number of documents to retrieve")
     args = parser.parse_args()
 
@@ -37,14 +37,12 @@ def main():
     api_map = {
         "hf": "hf_inference",
         "local": "local_api",
+        "local_python": "local_python",
         "mock": "mock",
         "openrouter": "openrouter"
     }
     # Determine LLM client API type based on CLI mode
     mode = api_map[args.mode]
-    if args.live:
-        # If legacy --live flag is used, force local API
-        mode = "local_api"
     llm_client = LLMClient(api_type=mode)
     orchestrator = RAGOrchestrator(llm_client=llm_client)
 
@@ -88,13 +86,12 @@ def main():
         print(f"  [1] OpenRouter (Model: {OPENROUTER_MODEL})")
         print(f"  [2] Local Ollama (Model: {LOCAL_LLM_MODEL} at {LOCAL_LLM_API_URL})")
         print("  [3] Hugging Face Serverless API (Qwen/Qwen2.5-72B-Instruct)")
-        print("  [4] Local Mock Backend (offline rule-based generation)")
         print("-" * 80)
 
         selected_mode = args.mode
         while True:
             try:
-                choice = input("Select backend mode [1-4] (default 1): ").strip()
+                choice = input("Select backend mode [1-3] (default 1): ").strip()
                 if not choice:
                     selected_mode = "openrouter"
                     break
@@ -107,16 +104,14 @@ def main():
                 elif choice == "3":
                     selected_mode = "hf"
                     break
-                elif choice == "4":
-                    selected_mode = "mock"
-                    break
                 else:
-                    print("Invalid choice. Please enter a number between 1 and 4.")
+                    print("Invalid choice. Please enter a number between 1 and 3.")
             except (KeyboardInterrupt, EOFError):
                 print("\nGoodbye!")
                 return
 
         # Select User Clearance Level
+        selected_user = args.user
         print("-" * 80)
         print("Please choose your Active User (Clearance Level) for this session:")
         print("  [1] alice   (Clearance: Confidential - Full access)")
@@ -157,7 +152,7 @@ def main():
         print(f"Top K Chunks: {args.top_k}")
         print("\nCommands:")
         print("  /user <username> : Switch active user (e.g. /user alice)")
-        print("  /mode <mode>     : Switch LLM mode (hf, local, mock, openrouter)")
+        print("  /mode <mode>     : Switch LLM mode (hf, local, openrouter)")
         print("  /top-k <num>     : Switch retrieval count")
         print("  /exit or /quit   : Exit interactive session")
         print("  /help            : Show this message again")
@@ -188,7 +183,7 @@ def main():
                 elif cmd == "/help":
                     print("\nCommands:")
                     print("  /user <username> : Switch active user (alice, bob, charlie)")
-                    print("  /mode <mode>     : Switch LLM mode (hf, local, mock, openrouter)")
+                    print("  /mode <mode>     : Switch LLM mode (hf, local, openrouter)")
                     print("  /top-k <num>     : Switch retrieval count")
                     print("  /exit or /quit   : Exit interactive session\n")
                     continue
@@ -211,10 +206,10 @@ def main():
                     continue
                 elif cmd == "/mode":
                     if len(parts) < 2:
-                        print("Error: Please specify a mode (hf, local, mock, openrouter)")
+                        print("Error: Please specify a mode (hf, local, openrouter)")
                     else:
                         target_mode = parts[1].lower()
-                        if target_mode in api_map:
+                        if target_mode in ["hf", "local", "openrouter"]:
                             current_mode = target_mode
                             # Reinitialize orchestrator and llm_client
                             mode = api_map[current_mode]
@@ -222,7 +217,7 @@ def main():
                             orchestrator = RAGOrchestrator(llm_client=llm_client)
                             print(f"Switched LLM mode to: {current_mode} ({mode})")
                         else:
-                            print(f"Error: Unknown mode '{target_mode}'. Choose from: {', '.join(api_map.keys())}")
+                            print(f"Error: Unknown mode '{target_mode}'. Choose from: hf, local, openrouter")
                     continue
                 else:
                     print(f"Unknown command: {cmd}. Type /help for assistance.")

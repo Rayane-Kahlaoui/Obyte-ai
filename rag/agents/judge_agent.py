@@ -157,12 +157,13 @@ class JudgeAgent(BaseAgent):
         system_prompt = (
             "You are an expert legal auditor checking a RAG system's output.\n"
             "You must evaluate the response strictly on the retrieved source contexts.\n"
+            "Since this is a strict, zero-creativity RAG system, the response must only contain facts directly mentioned in the context. Do not penalize the response for being concise or for not including outside details, examples, or elaboration. A response is 100% complete (score 5/5) if it answers the query using the relevant information present in the context, and does not require external knowledge.\n"
             "Provide your assessment as a single JSON object with these keys:\n"
             "{\n"
             '  "faithfulness_score": int (1-5),\n'
             '  "faithfulness_reason": "explanation of grounding",\n'
             '  "completeness_score": int (1-5),\n'
-            '  "completeness_reason": "explanation of query alignment",\n'
+            '  "completeness_reason": "explanation of query alignment based ONLY on context",\n'
             '  "approved": bool (true if both scores >= 4),\n'
             '  "feedback": "actionable feedback"\n'
             "}\n"
@@ -183,11 +184,37 @@ class JudgeAgent(BaseAgent):
             # Clean up markdown formatting if the LLM wrapped it in ```json ... ```
             cleaned_output = llm_output.strip()
             if cleaned_output.startswith("```"):
-                cleaned_output = re.sub(r"^```(?:json)?\n", "", cleaned_output)
-                cleaned_output = re.sub(r"\n```$", "", cleaned_output)
-            
-            result = json.loads(cleaned_output)
-            return result
+                cleaned_output = re.sub(r"^```(?:json)?\n?", "", cleaned_output)
+                cleaned_output = re.sub(r"\n?```$", "", cleaned_output.strip())
+            cleaned_output = cleaned_output.strip()
+
+            # Attempt 1: direct parse
+            try:
+                result = json.loads(cleaned_output)
+                return result
+            except json.JSONDecodeError:
+                pass
+
+            # Attempt 2: extract the first {...} block robustly
+            match = re.search(r'\{.*\}', cleaned_output, re.DOTALL)
+            if match:
+                try:
+                    result = json.loads(match.group(0))
+                    return result
+                except json.JSONDecodeError:
+                    pass
+
+            # Attempt 3: auto-close a truncated JSON object by appending closing brace
+            if '{' in cleaned_output and not cleaned_output.rstrip().endswith('}'):
+                patched = cleaned_output.rstrip().rstrip(',') + '\n}'
+                try:
+                    result = json.loads(patched)
+                    return result
+                except json.JSONDecodeError:
+                    pass
+
+            raise ValueError(f"Could not parse JSON from LLM output: {cleaned_output[:200]}")
+
         except Exception as e:
             # Fallback if LLM output fails to parse
             return {
@@ -198,5 +225,4 @@ class JudgeAgent(BaseAgent):
                 "approved": False,
                 "feedback": "Regenerate query; system auditor evaluation failed."
             }
-        
-        return result
+

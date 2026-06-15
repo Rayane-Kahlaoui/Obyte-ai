@@ -35,14 +35,14 @@ cp .env.example .env
 
 | Variable | Default | Description |
 |---|---|---|
-| `LLM_API_TYPE` | `openrouter` | `openrouter` · `local_api` · `hf_inference` · `mock` |
+| `LLM_API_TYPE` | `openrouter` | `openrouter` · `local_api` · `hf_inference` |
 | `OPENROUTER_API_KEY` | — | Required when `LLM_API_TYPE=openrouter` |
 | `OPENROUTER_MODEL` | `openai/gpt-oss-20b:free` | Model slug used for the OpenRouter backend |
 | `HF_TOKEN` | — | Required when `LLM_API_TYPE=hf_inference` |
 | `LOCAL_LLM_API_URL` | `http://host.docker.internal:11434/v1` | Base URL of Ollama or llama.cpp server |
-| `LOCAL_LLM_MODEL` | `llama3.2:1b` | Model name when using `local_api` |
+| `LOCAL_LLM_MODEL` | `mistral:7b-instruct-q4_0` | Model name when using `local_api` (Recommended: `mistral:7b-instruct-q4_0` for high compliance) |
 
-> **Using Ollama locally?** Set `LLM_API_TYPE=local_api`. The compose file routes `host.docker.internal` to your machine automatically on Docker Desktop.
+> **Using Ollama locally?** Set `LLM_API_TYPE=local_api` and download the recommended model (`ollama pull mistral:7b-instruct-q4_0`). The compose file routes `host.docker.internal` to your machine automatically on Docker Desktop.
 
 ---
 
@@ -87,7 +87,7 @@ run_chat.bat
 ```
 
 On startup you will be asked to:
-1. **Select an LLM backend** — OpenRouter, local Ollama, Hugging Face, or mock.
+1. **Select an LLM backend** — OpenRouter, local Ollama, or Hugging Face.
 2. **Select a user** — alice (Confidential), bob (Internal), or charlie (Public).
 
 Inside the session you can switch users, backend, or retrieval depth on the fly:
@@ -95,7 +95,7 @@ Inside the session you can switch users, backend, or retrieval depth on the fly:
 | Command | Description |
 |---|---|
 | `/user <name>` | Switch active user (alice / bob / charlie) |
-| `/mode <mode>` | Switch LLM backend (openrouter / local / hf / mock) |
+| `/mode <mode>` | Switch LLM backend (openrouter / local / hf) |
 | `/top-k <n>` | Change the number of retrieved chunks |
 | `/exit` | End the session |
 

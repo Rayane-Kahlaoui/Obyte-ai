@@ -11,3 +11,6 @@ mcp[cli]>=0.1.0
 numpy
 pandas
 python-dotenv
+llama-cpp-python --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cpu
+diskcache
+accelerate
