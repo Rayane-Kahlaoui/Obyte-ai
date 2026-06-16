@@ -1,4 +1,4 @@
-# Orbyte — Sovereign Multi-Agent Legal RAG System
+# Orbyte: Sovereign Multi-Agent Legal RAG System
 
 A clearance-aware Retrieval-Augmented Generation API for legal documents. Queries are filtered by user permission level before an LLM generates a grounded response. Every response is audited by a separate judge agent.
 
